@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 2%;
+    --foreground: 210 40% 98%;
+    --card: 210 40% 3.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 210 40% 3.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 210 40% 7.8%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 210 40% 7.8%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 210 40% 7.8%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 210 40% 11.8%;
+    --input: 210 40% 11.8%;
+    --ring: 217.2 91.2% 59.8%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-dark-bg text-dark-text font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .sidebar-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-dark-text-secondary transition-all hover:text-dark-text hover:bg-dark-surface;
+  }
+
+  .sidebar-item.active {
+    @apply bg-dark-accent text-white;
+  }
+
+  .page-header {
+    @apply text-2xl font-bold text-dark-text mb-6;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-dark-text mb-4;
+  }
+}
