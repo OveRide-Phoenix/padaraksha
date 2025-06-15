@@ -18,6 +18,9 @@ export const factories = [
     currentProduction: 850,
     efficiency: 92.5,
     qualityScore: 95.2,
+    employeeCount: 120,
+    monthlyRevenue: 850000,
+    status: "Active",
   },
   {
     id: "factory-2",
@@ -27,6 +30,9 @@ export const factories = [
     currentProduction: 720,
     efficiency: 90.0,
     qualityScore: 93.8,
+    employeeCount: 95,
+    monthlyRevenue: 720000,
+    status: "Active",
   },
   {
     id: "factory-3",
@@ -36,6 +42,9 @@ export const factories = [
     currentProduction: 1100,
     efficiency: 91.7,
     qualityScore: 94.5,
+    employeeCount: 140,
+    monthlyRevenue: 980000,
+    status: "Active",
   },
 ]
 

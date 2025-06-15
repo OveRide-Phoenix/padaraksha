@@ -127,7 +127,7 @@ export default function DashboardPage() {
   }, [router])
 
   if (!selectedFactory) {
-    return <div className="p-6 text-dark-text">Loading...</div>
+    return <div className="p-6 text-foreground">Loading...</div>
   }
 
   return (
@@ -139,29 +139,29 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={() => router.push("/company-dashboard")}
-              className="border-dark-border text-dark-text-secondary hover:text-dark-text hover:bg-dark-surface"
+              className="border-border text-muted-foreground hover:text-foreground hover:bg-accent"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Company View
             </Button>
           </div>
           <h1 className="page-header">{selectedFactory.name}</h1>
-          <p className="text-dark-text-secondary">Factory Dashboard - Monitor operations and access key modules</p>
+          <p className="text-muted-foreground">Factory Dashboard - Monitor operations and access key modules</p>
         </div>
       </div>
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <Card key={stat.title} className="bg-dark-surface border-dark-border">
+          <Card key={stat.title} className="bg-card border-border theme-transition">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-dark-text-secondary">{stat.description}</p>
-                  <p className="text-2xl font-bold text-dark-text">{stat.value}</p>
+                  <p className="text-sm text-muted-foreground">{stat.description}</p>
+                  <p className="text-2xl font-bold text-card-foreground">{stat.value}</p>
                   <p className="text-xs text-green-400">{stat.trend} from yesterday</p>
                 </div>
-                <stat.icon className="h-8 w-8 text-dark-accent" />
+                <stat.icon className="h-8 w-8 text-primary" />
               </div>
             </CardContent>
           </Card>
@@ -175,17 +175,17 @@ export default function DashboardPage() {
           {modules.map((module) => (
             <Card
               key={module.title}
-              className="bg-dark-surface border-dark-border hover:border-dark-accent transition-colors"
+              className="bg-card border-border hover:border-primary transition-colors theme-transition"
             >
               <CardHeader className="pb-3">
                 <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${module.color} border`}>
                   <module.icon className="h-6 w-6" />
                 </div>
-                <CardTitle className="text-lg text-dark-text">{module.title}</CardTitle>
-                <CardDescription className="text-dark-text-secondary">{module.description}</CardDescription>
+                <CardTitle className="text-lg text-card-foreground">{module.title}</CardTitle>
+                <CardDescription className="text-muted-foreground">{module.description}</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <Button asChild className="w-full bg-dark-accent hover:bg-dark-accent-hover">
+                <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Link href={module.href}>Access Module</Link>
                 </Button>
               </CardContent>

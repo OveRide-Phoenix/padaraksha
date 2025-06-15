@@ -53,16 +53,6 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Custom dark theme colors
-        dark: {
-          bg: "#0a0a0a",
-          surface: "#111111",
-          border: "#1f1f1f",
-          text: "#ffffff",
-          "text-secondary": "#a1a1aa",
-          accent: "#3b82f6",
-          "accent-hover": "#2563eb",
-        },
       },
       borderRadius: {
         lg: "var(--radius)",
