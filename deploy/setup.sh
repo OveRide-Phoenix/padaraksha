@@ -5,7 +5,7 @@
 set -e
 
 APP_DIR="/var/www/padaraksha"
-DOMAIN="padaraksha-dev.kutterkitchen.com"   # <-- replace with your domain
+DOMAIN="padaraksha-dev.kuteerakitchen.com"   # <-- replace with your domain
 
 echo "==> [1/5] Installing Python dependencies..."
 cd "$APP_DIR"

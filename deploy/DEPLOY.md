@@ -4,8 +4,8 @@ Runs alongside **kk_v1** on the same VPS. No port conflicts:
 
 | App       | Backend | Frontend | Domain             |
 |-----------|---------|----------|--------------------|
-| kk_v1     | 8000    | 3000     | kutterkitchen.com (existing)              |
-| padaraksha| 8002    | 3002     | padaraksha-dev.kutterkitchen.com          |
+| kk_v1     | 8000    | 3000     | kuteerakitchen.com (existing)              |
+| padaraksha| 8002    | 3002     | padaraksha-dev.kuteerakitchen.com          |
 
 ---
 
@@ -55,13 +55,13 @@ SECRET_KEY=generate-a-long-random-string-here
 
 Also update `backend/main.py` CORS `allow_origins` to include your production domain:
 ```python
-allow_origins=["https://padaraksha-dev.kutterkitchen.com"]
+allow_origins=["https://padaraksha-dev.kuteerakitchen.com"]
 ```
 
 ### 4. Nginx
 
 ```bash
-# Replace padaraksha-dev.kutterkitchen.com in the config first
+# Replace padaraksha-dev.kuteerakitchen.com in the config first
 sudo cp /var/www/padaraksha/deploy/nginx/padaraksha.conf /etc/nginx/sites-available/padaraksha
 sudo ln -s /etc/nginx/sites-available/padaraksha /etc/nginx/sites-enabled/
 sudo nginx -t
@@ -71,7 +71,7 @@ sudo systemctl reload nginx
 ### 5. SSL (certbot)
 
 ```bash
-sudo certbot --nginx -d padaraksha-dev.kutterkitchen.com
+sudo certbot --nginx -d padaraksha-dev.kuteerakitchen.com
 ```
 
 ### 6. Systemd services

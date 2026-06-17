@@ -1,0 +1,62 @@
+# Padaraksha — GitLab CI/CD
+# Deploys develop branch to padaraksha-dev.kuteerakitchen.com (port 8002/3002)
+# Never touches kk_v1 services (ports 8000/3000/8001/3001)
+
+stages:
+  - deploy
+
+variables:
+  VPS_HOST: "72.61.239.136"
+  VPS_USER: "root"
+  DEPLOY_PATH: "/var/www/padaraksha"
+  NEXT_PUBLIC_API_URL: "https://padaraksha-dev.kuteerakitchen.com/api"
+
+deploy:
+  stage: deploy
+  only:
+    - develop
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh "$VPS_USER@$VPS_HOST" "bash -s" << 'ENDSSH'
+        set -e
+        cd /var/www/padaraksha
+
+        echo "==> Pulling latest code from develop..."
+        git fetch origin develop
+        git checkout develop
+        git reset --hard origin/develop
+
+        echo "==> Installing Python dependencies..."
+        .venv/bin/pip install -q -r backend/requirements.txt
+
+        echo "==> Running DB migrations..."
+        cd backend
+        ../.venv/bin/alembic upgrade head
+        cd ..
+
+        echo "==> Building Next.js frontend..."
+        cd frontend
+        npm install --legacy-peer-deps --silent
+        NEXT_PUBLIC_API_URL=https://padaraksha-dev.kuteerakitchen.com/api npm run build
+        cd ..
+
+        echo "==> Restarting services..."
+        systemctl restart padaraksha-backend
+        systemctl restart padaraksha-frontend
+
+        echo "==> Verifying services..."
+        sleep 3
+        systemctl is-active padaraksha-backend
+        systemctl is-active padaraksha-frontend
+
+        echo "==> Deploy complete"
+      ENDSSH
+  environment:
+    name: development
+    url: https://padaraksha-dev.kuteerakitchen.com
