@@ -18,7 +18,7 @@ WorkingDirectory=/var/www/padaraksha/frontend
 Environment=NODE_ENV=production
 # NEXT_PUBLIC_API_URL is baked in at build time — see deploy/setup.sh
 # This env var here is a no-op for the running server but kept for clarity.
-Environment=NEXT_PUBLIC_API_URL=https://yourdomain.com/api
+Environment=NEXT_PUBLIC_API_URL=https://padaraksha-dev.kutterkitchen.com/api
 
 ExecStart=/var/www/padaraksha/frontend/node_modules/.bin/next start --port 3001
 

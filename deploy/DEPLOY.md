@@ -4,8 +4,8 @@ Runs alongside **kk_v1** on the same VPS. No port conflicts:
 
 | App       | Backend | Frontend | Domain             |
 |-----------|---------|----------|--------------------|
-| kk_v1     | 8000    | 3000     | kk_v1.yourdomain.com |
-| padaraksha| 8001    | 3001     | padaraksha.yourdomain.com |
+| kk_v1     | 8000    | 3000     | kutterkitchen.com (existing)              |
+| padaraksha| 8001    | 3001     | padaraksha-dev.kutterkitchen.com          |
 
 ---
 
@@ -23,7 +23,7 @@ git clone https://gitlab.com/personal-projects-overide/padaraksha.git /var/www/p
 
 ```sql
 CREATE DATABASE padaraksha_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'padaraksha'@'localhost' IDENTIFIED BY 'STRONG_PASSWORD_HERE';
+CREATE USER 'padaraksha'@'localhost' IDENTIFIED BY 'rYncWWhjPJet2XnewTjzlXt2BZgv';
 GRANT ALL PRIVILEGES ON padaraksha_db.* TO 'padaraksha'@'localhost';
 FLUSH PRIVILEGES;
 ```
@@ -55,16 +55,14 @@ SECRET_KEY=generate-a-long-random-string-here
 
 Also update `backend/main.py` CORS `allow_origins` to include your production domain:
 ```python
-allow_origins=["https://yourdomain.com"]
+allow_origins=["https://padaraksha-dev.kutterkitchen.com"]
 ```
 
 ### 4. Nginx
 
 ```bash
-# Replace yourdomain.com in the config first
+# Replace padaraksha-dev.kutterkitchen.com in the config first
 sudo cp /var/www/padaraksha/deploy/nginx/padaraksha.conf /etc/nginx/sites-available/padaraksha
-sudo nano /etc/nginx/sites-available/padaraksha   # fill in your domain
-
 sudo ln -s /etc/nginx/sites-available/padaraksha /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
@@ -73,7 +71,7 @@ sudo systemctl reload nginx
 ### 5. SSL (certbot)
 
 ```bash
-sudo certbot --nginx -d yourdomain.com
+sudo certbot --nginx -d padaraksha-dev.kutterkitchen.com
 ```
 
 ### 6. Systemd services
