@@ -7,7 +7,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from datetime import date, datetime, timedelta
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 
 from database import SessionLocal, engine
 from models.auth import Factory, Role, User
@@ -22,10 +22,9 @@ from models.production import (
 )
 from models.payroll import Attendance, Deduction, Employee, PayrollLineItem, PayrollRun
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 db = SessionLocal()
 
-def h(s): return pwd_ctx.hash(s)
+def h(s): return _bcrypt.hashpw(s.encode(), _bcrypt.gensalt(rounds=12)).decode()
 def d(s): return date.fromisoformat(s)
 def dt(s): return datetime.fromisoformat(s)
 
