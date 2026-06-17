@@ -18,7 +18,7 @@ EnvironmentFile=/var/www/padaraksha/backend/.env
 
 ExecStart=/var/www/padaraksha/.venv/bin/uvicorn main:app \
     --host 127.0.0.1 \
-    --port 8001 \
+    --port 8002 \
     --workers 2
 
 Restart=on-failure

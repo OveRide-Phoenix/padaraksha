@@ -5,7 +5,7 @@ Runs alongside **kk_v1** on the same VPS. No port conflicts:
 | App       | Backend | Frontend | Domain             |
 |-----------|---------|----------|--------------------|
 | kk_v1     | 8000    | 3000     | kutterkitchen.com (existing)              |
-| padaraksha| 8001    | 3001     | padaraksha-dev.kutterkitchen.com          |
+| padaraksha| 8002    | 3002     | padaraksha-dev.kutterkitchen.com          |
 
 ---
 
@@ -123,7 +123,7 @@ sudo journalctl -u padaraksha-frontend -f   # live frontend logs
 
 ## How kk_v1 is unaffected
 
-- Completely separate ports (8001/3001 vs 8000/3000)
+- Completely separate ports (8002/3002 vs 8000/3000)
 - Separate nginx server block (`server_name` is a different domain)
 - Separate systemd services (`padaraksha-*` vs `kk-*`)
 - Separate MySQL database (`padaraksha_db` vs whatever kk_v1 uses)

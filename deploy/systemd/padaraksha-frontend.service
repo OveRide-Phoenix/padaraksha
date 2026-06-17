@@ -20,7 +20,7 @@ Environment=NODE_ENV=production
 # This env var here is a no-op for the running server but kept for clarity.
 Environment=NEXT_PUBLIC_API_URL=https://padaraksha-dev.kutterkitchen.com/api
 
-ExecStart=/var/www/padaraksha/frontend/node_modules/.bin/next start --port 3001
+ExecStart=/var/www/padaraksha/frontend/node_modules/.bin/next start --port 3002
 
 Restart=on-failure
 RestartSec=5s
