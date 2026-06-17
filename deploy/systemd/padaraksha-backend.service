@@ -1,0 +1,32 @@
+# Padaraksha — FastAPI backend service
+# Place at: /etc/systemd/system/padaraksha-backend.service
+# Enable:   sudo systemctl enable padaraksha-backend
+# Start:    sudo systemctl start padaraksha-backend
+
+[Unit]
+Description=Padaraksha FastAPI backend
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/padaraksha/backend
+
+EnvironmentFile=/var/www/padaraksha/backend/.env
+
+ExecStart=/var/www/padaraksha/.venv/bin/uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 8001 \
+    --workers 2
+
+Restart=on-failure
+RestartSec=5s
+
+ReadWritePaths=/var/www/padaraksha
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
