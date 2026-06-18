@@ -30,7 +30,7 @@ deploy:
         cd /var/www/padaraksha
 
         echo "==> Pulling latest code from develop..."
-        git fetch origin develop
+        git fetch --prune origin
         git checkout develop
         git reset --hard origin/develop
 
