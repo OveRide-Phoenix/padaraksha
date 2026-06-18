@@ -117,6 +117,16 @@ def update_article(
     return {"success": True, "data": _article_out(article), "message": "Article updated"}
 
 
+@router.delete("/{article_id}")
+def delete_article(
+    article_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    articles_service.delete_article(article_id, current_user.factory_id, db)
+    return {"success": True, "data": None, "message": "Article deleted"}
+
+
 @router.post("/{article_id}/bom")
 def upsert_bom(
     article_id: int,

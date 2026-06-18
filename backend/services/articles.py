@@ -13,6 +13,12 @@ from schemas.articles import (
 )
 
 
+def delete_article(article_id: int, factory_id: int, db: Session) -> None:
+    article = get_article(article_id, factory_id, db)
+    db.delete(article)
+    db.commit()
+
+
 def list_articles(factory_id: int, db: Session) -> list[Article]:
     """Return all articles scoped to this factory."""
     return db.query(Article).filter(Article.factory_id == factory_id).all()
