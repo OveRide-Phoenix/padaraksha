@@ -150,6 +150,17 @@ def add_stage(
     return {"success": True, "data": {"id": stage.id}, "message": "Stage added"}
 
 
+@router.delete("/{article_id}/stages/{stage_id}")
+def delete_stage(
+    article_id: int,
+    stage_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    articles_service.delete_work_stage(article_id, stage_id, current_user.factory_id, db)
+    return {"success": True, "data": None, "message": "Stage deleted"}
+
+
 @router.post("/{article_id}/variants")
 def add_variant(
     article_id: int,
