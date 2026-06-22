@@ -109,6 +109,20 @@ def add_work_stage(article_id: int, factory_id: int, data: WorkStageCreate, db: 
     return stage
 
 
+def delete_work_stage(article_id: int, stage_id: int, factory_id: int, db: Session) -> None:
+    get_article(article_id, factory_id, db)
+
+    stage = db.query(WorkStage).filter(
+        WorkStage.id == stage_id,
+        WorkStage.article_id == article_id,
+    ).first()
+    if not stage:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="STAGE_NOT_FOUND")
+
+    stage.is_active = False
+    db.commit()
+
+
 def add_variant(article_id: int, factory_id: int, data: ArticleVariantCreate, db: Session) -> ArticleVariant:
     get_article(article_id, factory_id, db)
 

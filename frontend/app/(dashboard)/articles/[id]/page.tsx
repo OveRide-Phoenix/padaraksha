@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { ArrowLeft, Plus, Pencil, Loader2 } from "lucide-react"
+import { ArrowLeft, Plus, Pencil, Loader2, Trash2 } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -143,6 +143,14 @@ export default function ArticleDetailPage() {
   const closePanel = () => setPanel(null)
   const refresh = async () => { closePanel(); await loadArticle() }
 
+  const deleteStage = async (stageId: number) => {
+    if (!confirm("Delete this work stage?")) return
+    try {
+      await api.del(`/articles/${articleId}/stages/${stageId}`)
+      await loadArticle()
+    } catch { /* ignore */ }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center flex-1 min-h-[400px]">
@@ -250,7 +258,7 @@ export default function ArticleDetailPage() {
                 <div
                   key={stage.id}
                   className={cn(
-                    "flex items-center justify-between py-2.5 gap-3",
+                    "flex items-center justify-between py-2.5 gap-3 group",
                     i < article.work_stages.length - 1 && "border-b border-border"
                   )}
                 >
@@ -263,9 +271,18 @@ export default function ArticleDetailPage() {
                       <span className="text-[10px] text-muted-foreground border border-border rounded px-1">parallel</span>
                     )}
                   </div>
-                  <span className="shrink-0 font-mono text-[13px] text-muted-foreground tabular-nums">
-                    ₹{stage.pay_rate.toFixed(2)}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono text-[13px] text-muted-foreground tabular-nums">
+                      ₹{stage.pay_rate.toFixed(2)}
+                    </span>
+                    <button
+                      onClick={() => deleteStage(stage.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-150"
+                      title="Delete stage"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
               <div className="flex items-center justify-between pt-3 mt-1 border-t border-border">
