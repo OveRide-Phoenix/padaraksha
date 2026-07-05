@@ -58,6 +58,12 @@ ALTER TABLE articles
 -- WORK STAGES — time study + role + dual piece rates
 -- ─────────────────────────────────────────
 
+-- Note: avg_seconds_per_100 is dropped here because 001_initial_schema.sql
+-- creates it. If you're applying this to a database that predates that
+-- column being added to 001 (i.e. avg_seconds_per_100 was never actually
+-- created), drop the "DROP COLUMN avg_seconds_per_100" clause below —
+-- MySQL 8.0's DROP COLUMN doesn't support IF EXISTS combined with other
+-- clauses in one ALTER TABLE, so this can't be made defensive in-line.
 ALTER TABLE work_stages
     ADD COLUMN role ENUM('tailor','helper') NOT NULL DEFAULT 'helper' AFTER name,
     ADD COLUMN applies_per ENUM('piece','pair') NOT NULL DEFAULT 'piece' AFTER role,
@@ -65,14 +71,8 @@ ALTER TABLE work_stages
     ADD COLUMN fatigue_allowance_pct DECIMAL(5,2) NOT NULL DEFAULT 5.00 AFTER seconds_per_10_pieces,
     ADD COLUMN pay_rate_in_house DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER fatigue_allowance_pct,
     ADD COLUMN pay_rate_wfh DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER pay_rate_in_house,
-    DROP COLUMN pay_rate;
-
--- avg_seconds_per_100 is dropped separately and defensively (IF EXISTS): it
--- only ever existed in a stray local dev edit, never in an officially-run
--- migration, so some environments won't have it. (MySQL doesn't allow
--- IF EXISTS combined with other clauses in one ALTER TABLE statement.)
-ALTER TABLE work_stages
-    DROP COLUMN IF EXISTS avg_seconds_per_100;
+    DROP COLUMN pay_rate,
+    DROP COLUMN avg_seconds_per_100;
 
 -- ─────────────────────────────────────────
 -- EMPLOYEES — sourcing type (drives which piece rate applies)
