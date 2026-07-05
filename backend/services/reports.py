@@ -1,3 +1,4 @@
+import calendar
 from datetime import date as date_type
 
 from sqlalchemy import func
@@ -11,6 +12,7 @@ from models.production import (
     InventoryTransaction,
     OutwardDelivery,
     ProviderReturn,
+    ProviderReturnLineItem,
     QcFailure,
     QcInspection,
     WorkAssignment,
@@ -333,3 +335,84 @@ def get_po_status_report(factory_id: int, db: Session) -> list[dict]:
         })
 
     return result
+
+
+# ── 5. Completed Report ───────────────────────────────────────────────────────
+# Mirrors the "COMPLETED REPORT" tab of COUNTING REPORT FORMAT.xlsx: per-PO
+# totals of good (accepted, non-damaged) pairs for a given month, plus a
+# month-level total/PO-count/average summary.
+
+def get_completed_report(factory_id: int, year: int, month: int, db: Session) -> dict:
+    _, last_day = calendar.monthrange(year, month)
+    start_date = date_type(year, month, 1)
+    end_date = date_type(year, month, last_day)
+
+    rows = (
+        db.query(ProviderReturnLineItem, ProviderReturn, ArticleVariant, Article, PurchaseOrder)
+        .join(ProviderReturn, ProviderReturnLineItem.return_id == ProviderReturn.id)
+        .join(ArticleVariant, ProviderReturnLineItem.article_variant_id == ArticleVariant.id)
+        .join(Article, ArticleVariant.article_id == Article.id)
+        .join(OutwardDelivery, ProviderReturn.outward_delivery_id == OutwardDelivery.id)
+        .join(PurchaseOrder, OutwardDelivery.po_id == PurchaseOrder.id)
+        .filter(
+            ProviderReturn.factory_id == factory_id,
+            ProviderReturn.return_date >= start_date,
+            ProviderReturn.return_date <= end_date,
+        )
+        .all()
+    )
+
+    by_po: dict[int, dict] = {}
+    for li, pr, variant, article, po in rows:
+        good_qty = li.quantity_counted_by_company - li.quantity_damaged
+        entry = by_po.setdefault(po.id, {
+            "po_id": po.id,
+            "po_number": po.po_number,
+            "article_number": article.article_number,
+            "article_name": article.name,
+            "left_pieces": 0,
+            "right_pieces": 0,
+            "pair_pieces": 0,
+            "first_return_date": pr.return_date,
+            "last_return_date": pr.return_date,
+        })
+        if variant.foot == "left":
+            entry["left_pieces"] += good_qty
+        elif variant.foot == "right":
+            entry["right_pieces"] += good_qty
+        else:
+            entry["pair_pieces"] += good_qty
+        entry["first_return_date"] = min(entry["first_return_date"], pr.return_date)
+        entry["last_return_date"] = max(entry["last_return_date"], pr.return_date)
+
+    pos_out = []
+    total_production = 0.0
+    for entry in by_po.values():
+        total_pcs = entry["left_pieces"] + entry["right_pieces"] + entry["pair_pieces"] * 2
+        total_pairs = entry["pair_pieces"] + (entry["left_pieces"] + entry["right_pieces"]) / 2
+        total_production += total_pairs
+        pos_out.append({
+            "po_id": entry["po_id"],
+            "po_number": entry["po_number"],
+            "article_number": entry["article_number"],
+            "article_name": entry["article_name"],
+            "left_pieces": entry["left_pieces"],
+            "right_pieces": entry["right_pieces"],
+            "total_pcs": total_pcs,
+            "total_pairs": total_pairs,
+            "first_return_date": entry["first_return_date"].isoformat(),
+            "last_return_date": entry["last_return_date"].isoformat(),
+        })
+
+    pos_out.sort(key=lambda p: p["first_return_date"])
+
+    po_count = len(pos_out)
+    return {
+        "period": {"year": year, "month": month},
+        "summary": {
+            "total_production": total_production,
+            "po_count": po_count,
+            "average_production": total_production / po_count if po_count else 0,
+        },
+        "purchase_orders": pos_out,
+    }

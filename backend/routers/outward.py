@@ -54,3 +54,23 @@ def create_provider_return(
         },
         "message": "Provider return logged",
     }
+
+
+@router.get("/{delivery_id}")
+def get_outward_delivery(
+    delivery_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = svc.get_outward_delivery_detail(delivery_id, current_user.factory_id, db)
+    return {"success": True, "data": data, "message": ""}
+
+
+@router.get("/{delivery_id}/provider-returns")
+def list_provider_returns(
+    delivery_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = svc.list_provider_returns_for_delivery(delivery_id, current_user.factory_id, db)
+    return {"success": True, "data": data, "message": ""}

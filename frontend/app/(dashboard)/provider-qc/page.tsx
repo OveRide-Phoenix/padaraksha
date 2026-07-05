@@ -30,10 +30,69 @@ interface FailureRow {
   quantity_failed: string
 }
 
+interface VariantLabel {
+  id: number
+  article_number: string | null
+  colour: string | null
+  size: string | null
+  foot: "left" | "right" | "pair"
+}
+
+interface DeliveryLineItem {
+  id: number
+  variant: VariantLabel | null
+  quantity_dispatched: number
+  quantity_shortage: number
+  quantity_spoiled: number
+}
+
+interface DeliveryDetail {
+  id: number
+  line_items: DeliveryLineItem[]
+}
+
+interface CountingRow {
+  article_variant_id: number
+  variant: VariantLabel | null
+  quantity_dispatched: number
+  quantity_reported_by_unit: string
+  quantity_counted_by_company: string
+  quantity_damaged: string
+}
+
+interface ReturnLineItem {
+  id: number
+  variant: VariantLabel | null
+  quantity_dispatched: number | null
+  quantity_reported_by_unit: number
+  quantity_counted_by_company: number
+  quantity_damaged: number
+  shortage_unit: number | null
+  shortage_company: number | null
+  variance: number | null
+}
+
+interface PriorReturn {
+  id: number
+  return_date: string
+  total_returned: number
+  full_return: boolean
+  reason: string | null
+  rework_of_return_id: number | null
+  round_number: number
+  line_items: ReturnLineItem[]
+}
+
 interface ApiResponse<T> {
   success: boolean
   data: T
   message?: string
+}
+
+function variantLabel(v: VariantLabel | null): string {
+  if (!v) return "—"
+  const foot = v.foot === "pair" ? "" : ` (${v.foot})`
+  return `${v.article_number ?? ""} — ${v.colour ?? ""} sz ${v.size ?? "?"}${foot}`
 }
 
 const emptyForm = {
@@ -42,6 +101,7 @@ const emptyForm = {
   total_returned: "",
   full_return: false,
   reason: "",
+  rework_of_return_id: "",
 }
 
 const emptyFailure = (): FailureRow => ({ work_stage_id: "", quantity_failed: "" })
@@ -66,6 +126,9 @@ export default function ProviderQCPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   // Pre-select a delivery when clicking "Log Return" from a row
   const [preselectedId, setPreselectedId] = useState<string>("")
+  const [countingRows, setCountingRows] = useState<CountingRow[]>([])
+  const [countingLoading, setCountingLoading] = useState(false)
+  const [priorReturns, setPriorReturns] = useState<PriorReturn[]>([])
 
   const loadDeliveries = useCallback(async () => {
     setLoading(true)
@@ -83,6 +146,58 @@ export default function ProviderQCPage() {
   useEffect(() => {
     loadDeliveries()
   }, [loadDeliveries])
+
+  useEffect(() => {
+    if (!form.delivery_id) {
+      setCountingRows([])
+      setPriorReturns([])
+      return
+    }
+    let cancelled = false
+    setCountingLoading(true)
+    Promise.all([
+      api.get<ApiResponse<DeliveryDetail>>(`/outward-deliveries/${form.delivery_id}`),
+      api.get<ApiResponse<PriorReturn[]>>(`/outward-deliveries/${form.delivery_id}/provider-returns`),
+    ])
+      .then(([deliveryRes, returnsRes]) => {
+        if (cancelled) return
+        const items = (deliveryRes.data?.line_items ?? []).map((li) => ({
+          article_variant_id: li.variant?.id ?? 0,
+          variant: li.variant,
+          quantity_dispatched: li.quantity_dispatched,
+          quantity_reported_by_unit: "",
+          quantity_counted_by_company: "",
+          quantity_damaged: "0",
+        }))
+        setCountingRows(items)
+        setPriorReturns(returnsRes.data ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCountingRows([])
+          setPriorReturns([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCountingLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [form.delivery_id])
+
+  function updateCountingRow(idx: number, field: keyof CountingRow, value: string) {
+    setCountingRows((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, [field]: value } : row))
+    )
+  }
+
+  const countingTotals = countingRows.reduce(
+    (acc, r) => ({
+      counted: acc.counted + (Number(r.quantity_counted_by_company) || 0),
+    }),
+    { counted: 0 }
+  )
 
   function openSheet(deliveryId?: string) {
     setForm({ ...emptyForm, delivery_id: deliveryId ?? "" })
@@ -115,7 +230,9 @@ export default function ProviderQCPage() {
       setSaveError("Enter return date")
       return
     }
-    if (!form.total_returned || Number(form.total_returned) <= 0) {
+    const hasCountingRows = countingRows.length > 0
+    const totalReturned = hasCountingRows ? countingTotals.counted : Number(form.total_returned)
+    if (!totalReturned || totalReturned <= 0) {
       setSaveError("Enter total returned quantity")
       return
     }
@@ -129,13 +246,22 @@ export default function ProviderQCPage() {
     try {
       await api.post(`/outward-deliveries/${form.delivery_id}/provider-return`, {
         return_date: form.return_date,
-        total_returned: Number(form.total_returned),
+        total_returned: totalReturned,
         full_return: form.full_return,
         reason: form.reason || undefined,
+        rework_of_return_id: form.rework_of_return_id ? Number(form.rework_of_return_id) : undefined,
         failures: validFailures.map((f) => ({
           work_stage_id: Number(f.work_stage_id),
           quantity_failed: Number(f.quantity_failed),
         })),
+        line_items: hasCountingRows
+          ? countingRows.map((r) => ({
+              article_variant_id: r.article_variant_id,
+              quantity_reported_by_unit: Number(r.quantity_reported_by_unit) || 0,
+              quantity_counted_by_company: Number(r.quantity_counted_by_company) || 0,
+              quantity_damaged: Number(r.quantity_damaged) || 0,
+            }))
+          : [],
       })
       setSheetOpen(false)
       await loadDeliveries()
@@ -298,6 +424,52 @@ export default function ProviderQCPage() {
               </Select>
             </div>
 
+            {/* Previous returns / rework chain for this delivery */}
+            {priorReturns.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Previous Returns for This Delivery
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  {priorReturns.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-md border border-border text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                          Round {r.round_number}
+                        </span>
+                        <span className="text-muted-foreground">{fmtDate(r.return_date)}</span>
+                        <span className="font-mono tabular-nums">{r.total_returned} pcs</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, rework_of_return_id: String(r.id) }))}
+                        className={cn(
+                          "px-2 py-1 rounded border text-xs",
+                          form.rework_of_return_id === String(r.id)
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {form.rework_of_return_id === String(r.id) ? "Reworking this" : "Rework of this"}
+                      </button>
+                    </div>
+                  ))}
+                  {form.rework_of_return_id && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, rework_of_return_id: "" }))}
+                      className="text-xs text-muted-foreground hover:text-foreground self-start"
+                    >
+                      Clear rework link
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Return date */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground">Return Date *</label>
@@ -309,18 +481,120 @@ export default function ProviderQCPage() {
               />
             </div>
 
-            {/* Total returned */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Total Returned *</label>
-              <input
-                type="number"
-                min="1"
-                value={form.total_returned}
-                onChange={(e) => setForm((f) => ({ ...f, total_returned: e.target.value }))}
-                placeholder="0"
-                className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
-              />
-            </div>
+            {/* Per-variant dual counting, or manual total if delivery has no sizes */}
+            {countingLoading ? (
+              <div className="flex items-center justify-center h-16">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : countingRows.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Per Size — Unit Reported vs Company Recount *
+                </label>
+                <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">Size</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Sent</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Unit Says</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Company Count</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Damaged</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Variance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {countingRows.map((r, idx) => {
+                        const reported = Number(r.quantity_reported_by_unit) || 0
+                        const counted = Number(r.quantity_counted_by_company) || 0
+                        const damaged = Number(r.quantity_damaged) || 0
+                        const shortageUnit = r.quantity_dispatched - reported
+                        const shortageCompany = r.quantity_dispatched - counted - damaged
+                        const variance = shortageCompany - shortageUnit
+                        return (
+                          <tr key={r.article_variant_id}>
+                            <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
+                              {variantLabel(r.variant)}
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-mono tabular-nums text-muted-foreground">
+                              {r.quantity_dispatched}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                value={r.quantity_reported_by_unit}
+                                onChange={(e) => updateCountingRow(idx, "quantity_reported_by_unit", e.target.value)}
+                                placeholder="0"
+                                className="w-16 h-7 px-2 rounded border border-input bg-background text-right font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                value={r.quantity_counted_by_company}
+                                onChange={(e) => updateCountingRow(idx, "quantity_counted_by_company", e.target.value)}
+                                placeholder="0"
+                                className="w-16 h-7 px-2 rounded border border-input bg-background text-right font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                value={r.quantity_damaged}
+                                onChange={(e) => updateCountingRow(idx, "quantity_damaged", e.target.value)}
+                                className="w-14 h-7 px-2 rounded border border-input bg-background text-right font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                              />
+                            </td>
+                            <td
+                              className={cn(
+                                "px-2 py-1.5 text-right font-mono tabular-nums",
+                                variance > 0
+                                  ? "text-red-500 font-medium"
+                                  : variance < 0
+                                  ? "text-amber-500"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              {variance}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-border bg-muted/20 font-medium">
+                        <td className="px-3 py-1.5 text-muted-foreground">Total</td>
+                        <td colSpan={3} />
+                        <td className="px-2 py-1.5 text-right font-mono tabular-nums">{countingTotals.counted}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Variance = company&apos;s shortage minus the unit&apos;s own reported shortage. Positive means the
+                  unit under-reported how much was missing.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Total Returned *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.total_returned}
+                  onChange={(e) => setForm((f) => ({ ...f, total_returned: e.target.value }))}
+                  placeholder="0"
+                  className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This delivery has no sizes recorded — add per-size line items in Outward for dual counting.
+                </p>
+              </div>
+            )}
 
             {/* Full return toggle */}
             <div className="flex flex-col gap-1.5">

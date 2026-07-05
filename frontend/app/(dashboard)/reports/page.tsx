@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Users, Package, Wrench, ClipboardList } from "lucide-react"
+import { Users, Package, Wrench, ClipboardList, CheckSquare } from "lucide-react"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-type ReportKey = "daily-workers" | "inventory" | "damage" | "po-status"
+type ReportKey = "daily-workers" | "inventory" | "damage" | "po-status" | "completed"
 
 function todayStr() {
   return new Date().toISOString().split("T")[0]
@@ -111,6 +111,31 @@ interface DamageData {
   provider_returns: ProviderReturn[]
 }
 
+interface CompletedPO {
+  po_id: number
+  po_number: string
+  article_number: string
+  article_name: string | null
+  left_pieces: number
+  right_pieces: number
+  total_pcs: number
+  total_pairs: number
+  first_return_date: string
+  last_return_date: string
+}
+
+interface CompletedSummary {
+  total_production: number
+  po_count: number
+  average_production: number
+}
+
+interface CompletedData {
+  period: { year: number; month: number }
+  summary: CompletedSummary
+  purchase_orders: CompletedPO[]
+}
+
 interface POEntry {
   id: number
   po_number: string
@@ -149,6 +174,12 @@ const reportList: { key: ReportKey; icon: React.ReactNode; name: string; desc: s
     icon: <ClipboardList className="h-4 w-4" />,
     name: "PO Status",
     desc: "Open orders and deadline tracking",
+  },
+  {
+    key: "completed",
+    icon: <CheckSquare className="h-4 w-4" />,
+    name: "Completed Production",
+    desc: "Monthly per-PO pairs completed",
   },
 ]
 
@@ -259,6 +290,13 @@ export default function ReportsPage() {
   const [poLoading, setPoLoading] = useState(false)
   const [poError, setPoError] = useState<string | null>(null)
 
+  const now = new Date()
+  const [cpYear, setCpYear] = useState(now.getFullYear())
+  const [cpMonth, setCpMonth] = useState(now.getMonth() + 1)
+  const [cpData, setCpData] = useState<CompletedData | null>(null)
+  const [cpLoading, setCpLoading] = useState(false)
+  const [cpError, setCpError] = useState<string | null>(null)
+
   useEffect(() => {
     if (selected !== "po-status") return
     if (poData !== null) return
@@ -324,6 +362,22 @@ export default function ReportsPage() {
       setPoError(e instanceof Error ? e.message : "Failed to load report")
     } finally {
       setPoLoading(false)
+    }
+  }
+
+  async function fetchCompleted() {
+    setCpLoading(true)
+    setCpError(null)
+    setCpData(null)
+    try {
+      const res = await api.get<{ success: boolean; data: CompletedData }>(
+        `/reports/completed?year=${cpYear}&month=${cpMonth}`
+      )
+      setCpData(res.data)
+    } catch (e: unknown) {
+      setCpError(e instanceof Error ? e.message : "Failed to load report")
+    } finally {
+      setCpLoading(false)
     }
   }
 
@@ -746,6 +800,101 @@ export default function ReportsPage() {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          )}
+
+          {selected === "completed" && (
+            <div className="flex flex-col gap-5 max-w-4xl">
+              <div>
+                <SectionHeading>Completed Production Report</SectionHeading>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={cpMonth}
+                    onChange={(e) => setCpMonth(Number(e.target.value))}
+                    className={dateInputCls}
+                  >
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {new Date(2000, i, 1).toLocaleString("en-IN", { month: "long" })}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    value={cpYear}
+                    onChange={(e) => setCpYear(Number(e.target.value))}
+                    className={cn(dateInputCls, "w-20")}
+                  />
+                  <button onClick={fetchCompleted} disabled={cpLoading} className={runBtnCls}>
+                    {cpLoading ? "Loading…" : "Run Report"}
+                  </button>
+                </div>
+                {cpError && <div className="mt-3"><ErrorBanner msg={cpError} /></div>}
+              </div>
+
+              {cpLoading && <TableSkeleton cols={6} />}
+
+              {!cpLoading && cpData && (
+                <>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatChip label="Total Production (pairs)" value={Math.round(cpData.summary.total_production * 10) / 10} />
+                    <StatChip label="POs Completed" value={cpData.summary.po_count} />
+                    <StatChip
+                      label="Avg Production / PO"
+                      value={Math.round(cpData.summary.average_production * 10) / 10}
+                    />
+                  </div>
+
+                  {cpData.purchase_orders.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-10">
+                      No completed production recorded for this month.
+                    </p>
+                  ) : (
+                    <div className="border border-border rounded-md overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/40">
+                            <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">PO #</th>
+                            <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Article</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Left</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Right</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Total (pcs)</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Total (pairs)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {cpData.purchase_orders.map((po) => (
+                            <tr key={po.po_id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-3 font-mono text-xs font-medium">{po.po_number}</td>
+                              <td className="px-4 py-3 text-xs text-muted-foreground">
+                                {po.article_name ?? po.article_number}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                                {po.left_pieces}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                                {po.right_pieces}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
+                                {po.total_pcs}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono tabular-nums text-xs font-medium">
+                                {po.total_pairs}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!cpLoading && !cpData && !cpError && (
+                <p className="text-sm text-muted-foreground text-center py-10">
+                  Select a month and run the report.
+                </p>
               )}
             </div>
           )}

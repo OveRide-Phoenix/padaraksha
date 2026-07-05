@@ -13,6 +13,7 @@ from models.production import (
     OutwardLineItem,
     ProviderQcFailure,
     ProviderReturn,
+    ProviderReturnLineItem,
     ReworkAssignment,
     WorkAssignment,
 )
@@ -42,15 +43,35 @@ class ProviderQcFailureCreate(BaseModel):
     quantity_failed: int
 
 
+class ProviderReturnLineItemCreate(BaseModel):
+    article_variant_id: int
+    quantity_reported_by_unit: int = 0
+    quantity_counted_by_company: int = 0
+    quantity_damaged: int = 0
+
+
 class ProviderReturnCreate(BaseModel):
     return_date: date
     total_returned: int
     full_return: bool = False
     reason: Optional[str] = None
+    rework_of_return_id: Optional[int] = None
     failures: list[ProviderQcFailureCreate] = []
+    line_items: list[ProviderReturnLineItemCreate] = []
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _variant_label(variant: ArticleVariant, article: Optional[Article] = None) -> dict:
+    return {
+        "id": variant.id,
+        "article_id": variant.article_id,
+        "article_number": article.article_number if article else None,
+        "colour": variant.colour,
+        "size": variant.size,
+        "foot": variant.foot,
+    }
+
 
 def _get_delivery(delivery_id: int, factory_id: int, db: Session) -> OutwardDelivery:
     delivery = (
@@ -242,9 +263,22 @@ def create_provider_return(
         .first()
     )
 
+    if data.rework_of_return_id is not None:
+        parent = (
+            db.query(ProviderReturn)
+            .filter(
+                ProviderReturn.id == data.rework_of_return_id,
+                ProviderReturn.factory_id == factory_id,
+            )
+            .first()
+        )
+        if not parent:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="REWORK_PARENT_RETURN_NOT_FOUND")
+
     prov_return = ProviderReturn(
         factory_id=factory_id,
         outward_delivery_id=delivery_id,
+        rework_of_return_id=data.rework_of_return_id,
         return_date=data.return_date,
         total_returned=data.total_returned,
         full_return=data.full_return,
@@ -252,6 +286,15 @@ def create_provider_return(
     )
     db.add(prov_return)
     db.flush()
+
+    for li in data.line_items:
+        db.add(ProviderReturnLineItem(
+            return_id=prov_return.id,
+            article_variant_id=li.article_variant_id,
+            quantity_reported_by_unit=li.quantity_reported_by_unit,
+            quantity_counted_by_company=li.quantity_counted_by_company,
+            quantity_damaged=li.quantity_damaged,
+        ))
 
     for f in data.failures:
         pqc = ProviderQcFailure(
@@ -275,3 +318,120 @@ def create_provider_return(
     db.commit()
     db.refresh(prov_return)
     return prov_return
+
+
+def get_outward_delivery_detail(delivery_id: int, factory_id: int, db: Session) -> dict:
+    delivery = _get_delivery(delivery_id, factory_id, db)
+    po = db.query(PurchaseOrder).filter(PurchaseOrder.id == delivery.po_id).first()
+    provider = (
+        db.query(ProviderCompany).filter(ProviderCompany.id == po.provider_id).first()
+        if po
+        else None
+    )
+
+    line_items = []
+    for li in delivery.line_items:
+        variant = db.query(ArticleVariant).filter(ArticleVariant.id == li.article_variant_id).first()
+        article = (
+            db.query(Article).filter(Article.id == variant.article_id).first()
+            if variant
+            else None
+        )
+        line_items.append({
+            "id": li.id,
+            "variant": _variant_label(variant, article) if variant else None,
+            "quantity_dispatched": li.quantity_dispatched,
+            "quantity_shortage": li.quantity_shortage,
+            "quantity_spoiled": li.quantity_spoiled,
+        })
+
+    return {
+        "id": delivery.id,
+        "po_id": delivery.po_id,
+        "po_number": po.po_number if po else None,
+        "provider_name": provider.name if provider else None,
+        "dispatch_date": delivery.dispatch_date.isoformat(),
+        "total_dispatched": delivery.total_dispatched,
+        "total_shortage": delivery.total_shortage,
+        "total_spoiled": delivery.total_spoiled,
+        "notes": delivery.notes,
+        "line_items": line_items,
+    }
+
+
+def list_provider_returns_for_delivery(delivery_id: int, factory_id: int, db: Session) -> list[dict]:
+    delivery = _get_delivery(delivery_id, factory_id, db)
+
+    # quantity_dispatched per variant, for shortage/variance calc
+    dispatched_by_variant = {li.article_variant_id: li.quantity_dispatched for li in delivery.line_items}
+
+    returns = (
+        db.query(ProviderReturn)
+        .filter(ProviderReturn.outward_delivery_id == delivery_id)
+        .order_by(ProviderReturn.return_date.asc(), ProviderReturn.id.asc())
+        .all()
+    )
+
+    # round number = 1 + count of ancestors via rework_of_return_id chain
+    round_by_id: dict[int, int] = {}
+    for r in returns:
+        depth = 1
+        cursor = r
+        while cursor.rework_of_return_id is not None:
+            depth += 1
+            cursor = next((x for x in returns if x.id == cursor.rework_of_return_id), None)
+            if cursor is None:
+                break
+        round_by_id[r.id] = depth
+
+    result = []
+    for r in returns:
+        line_items = []
+        for li in r.line_items:
+            variant = db.query(ArticleVariant).filter(ArticleVariant.id == li.article_variant_id).first()
+            article = (
+                db.query(Article).filter(Article.id == variant.article_id).first()
+                if variant
+                else None
+            )
+            dispatched = dispatched_by_variant.get(li.article_variant_id)
+            shortage_unit = (
+                dispatched - li.quantity_reported_by_unit if dispatched is not None else None
+            )
+            shortage_company = (
+                dispatched - li.quantity_counted_by_company - li.quantity_damaged
+                if dispatched is not None
+                else None
+            )
+            variance = (
+                shortage_company - shortage_unit
+                if shortage_unit is not None and shortage_company is not None
+                else None
+            )
+            line_items.append({
+                "id": li.id,
+                "variant": _variant_label(variant, article) if variant else None,
+                "quantity_dispatched": dispatched,
+                "quantity_reported_by_unit": li.quantity_reported_by_unit,
+                "quantity_counted_by_company": li.quantity_counted_by_company,
+                "quantity_damaged": li.quantity_damaged,
+                "shortage_unit": shortage_unit,
+                "shortage_company": shortage_company,
+                "variance": variance,
+            })
+
+        result.append({
+            "id": r.id,
+            "return_date": r.return_date.isoformat(),
+            "total_returned": r.total_returned,
+            "full_return": r.full_return,
+            "reason": r.reason,
+            "rework_of_return_id": r.rework_of_return_id,
+            "round_number": round_by_id[r.id],
+            "line_items": line_items,
+            "failures": [
+                {"id": f.id, "work_stage_id": f.work_stage_id, "quantity_failed": f.quantity_failed}
+                for f in r.qc_failures
+            ],
+        })
+    return result

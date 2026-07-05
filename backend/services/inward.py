@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from models.articles import Article, ArticleVariant
 from models.inward import (
     DepartmentBill,
     DeptBillItem,
@@ -74,6 +75,21 @@ def _get_po(po_id: int, factory_id: int, db: Session) -> PurchaseOrder:
 
 def _days_remaining(deadline: date) -> int:
     return (deadline - date.today()).days
+
+
+def _variant_label(variant_id: int, db: Session) -> Optional[dict]:
+    variant = db.query(ArticleVariant).filter(ArticleVariant.id == variant_id).first()
+    if not variant:
+        return None
+    article = db.query(Article).filter(Article.id == variant.article_id).first()
+    return {
+        "id": variant.id,
+        "article_id": variant.article_id,
+        "article_number": article.article_number if article else None,
+        "colour": variant.colour,
+        "size": variant.size,
+        "foot": variant.foot,
+    }
 
 
 # ── PO service functions ───────────────────────────────────────────────────────
@@ -148,6 +164,7 @@ def get_purchase_order_detail(po_id: int, factory_id: int, db: Session) -> dict:
                 "id": li.id,
                 "article_variant_id": li.article_variant_id,
                 "quantity_ordered": li.quantity_ordered,
+                "variant": _variant_label(li.article_variant_id, db),
             }
             for li in po.line_items
         ],

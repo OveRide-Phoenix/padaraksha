@@ -137,6 +137,7 @@ class ProviderReturn(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     factory_id = Column(Integer, ForeignKey("factories.id"), nullable=False)
     outward_delivery_id = Column(Integer, ForeignKey("outward_deliveries.id"), nullable=False)
+    rework_of_return_id = Column(Integer, ForeignKey("provider_returns.id"))
     return_date = Column(Date, nullable=False)
     total_returned = Column(Integer, nullable=False)
     full_return = Column(Boolean, default=False, nullable=False)
@@ -146,6 +147,8 @@ class ProviderReturn(Base):
 
     outward_delivery = relationship("OutwardDelivery", back_populates="provider_returns")
     qc_failures = relationship("ProviderQcFailure", back_populates="provider_return")
+    line_items = relationship("ProviderReturnLineItem", back_populates="provider_return")
+    rework_of = relationship("ProviderReturn", remote_side=[id])
 
 
 class ProviderQcFailure(Base):
@@ -159,3 +162,18 @@ class ProviderQcFailure(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     provider_return = relationship("ProviderReturn", back_populates="qc_failures")
+
+
+class ProviderReturnLineItem(Base):
+    __tablename__ = "provider_return_line_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    return_id = Column(Integer, ForeignKey("provider_returns.id"), nullable=False)
+    article_variant_id = Column(Integer, ForeignKey("article_variants.id"), nullable=False)
+    quantity_reported_by_unit = Column(Integer, default=0, nullable=False)
+    quantity_counted_by_company = Column(Integer, default=0, nullable=False)
+    quantity_damaged = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    provider_return = relationship("ProviderReturn", back_populates="line_items")

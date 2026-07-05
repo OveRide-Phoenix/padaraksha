@@ -19,6 +19,7 @@ mysql -u root -p padaraksha_db < backend/migrations/001_initial_schema.sql || tr
 mysql -u root -p padaraksha_db < backend/migrations/002_costing_engine.sql || true
 mysql -u root -p padaraksha_db < backend/migrations/003_wage_and_snacks_fix.sql || true
 mysql -u root -p padaraksha_db < backend/migrations/004_tailor_wfh_wage.sql || true
+mysql -u root -p padaraksha_db < backend/migrations/005_provider_return_line_items.sql || true
 
 echo "==> [3/5] Installing Node dependencies..."
 cd "$APP_DIR/frontend"

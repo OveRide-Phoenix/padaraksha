@@ -35,10 +35,44 @@ interface PurchaseOrder {
   status: string
 }
 
+interface VariantLabel {
+  id: number
+  article_number: string | null
+  colour: string | null
+  size: string | null
+  foot: "left" | "right" | "pair"
+}
+
+interface PoLineItem {
+  id: number
+  article_variant_id: number
+  quantity_ordered: number
+  variant: VariantLabel | null
+}
+
+interface PoDetail {
+  id: number
+  line_items: PoLineItem[]
+}
+
+interface DeliveryLineItemForm {
+  article_variant_id: number
+  variant: VariantLabel | null
+  quantity_dispatched: string
+  quantity_shortage: string
+  quantity_spoiled: string
+}
+
 interface ApiResponse<T> {
   success: boolean
   data: T
   message?: string
+}
+
+function variantLabel(v: VariantLabel | null): string {
+  if (!v) return "—"
+  const foot = v.foot === "pair" ? "" : ` (${v.foot})`
+  return `${v.article_number ?? ""} — ${v.colour ?? ""} sz ${v.size ?? "?"}${foot}`
 }
 
 const emptyForm = {
@@ -68,6 +102,8 @@ export default function OutwardPage() {
   const [form, setForm] = useState({ ...emptyForm })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [lineItems, setLineItems] = useState<DeliveryLineItemForm[]>([])
+  const [lineItemsLoading, setLineItemsLoading] = useState(false)
 
   const loadDeliveries = useCallback(async () => {
     setLoading(true)
@@ -99,8 +135,55 @@ export default function OutwardPage() {
     loadPOs()
   }, [loadDeliveries, loadPOs])
 
+  useEffect(() => {
+    if (!form.po_id) {
+      setLineItems([])
+      return
+    }
+    let cancelled = false
+    setLineItemsLoading(true)
+    api
+      .get<ApiResponse<PoDetail>>(`/purchase-orders/${form.po_id}`)
+      .then((res) => {
+        if (cancelled) return
+        const items = (res.data?.line_items ?? []).map((li) => ({
+          article_variant_id: li.article_variant_id,
+          variant: li.variant,
+          quantity_dispatched: String(li.quantity_ordered),
+          quantity_shortage: "0",
+          quantity_spoiled: "0",
+        }))
+        setLineItems(items)
+      })
+      .catch(() => {
+        if (!cancelled) setLineItems([])
+      })
+      .finally(() => {
+        if (!cancelled) setLineItemsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [form.po_id])
+
+  function updateLineItem(idx: number, field: keyof DeliveryLineItemForm, value: string) {
+    setLineItems((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, [field]: value } : row))
+    )
+  }
+
+  const lineItemTotals = lineItems.reduce(
+    (acc, li) => ({
+      dispatched: acc.dispatched + (Number(li.quantity_dispatched) || 0),
+      shortage: acc.shortage + (Number(li.quantity_shortage) || 0),
+      spoiled: acc.spoiled + (Number(li.quantity_spoiled) || 0),
+    }),
+    { dispatched: 0, shortage: 0, spoiled: 0 }
+  )
+
   function openSheet() {
     setForm({ ...emptyForm })
+    setLineItems([])
     setSaveError(null)
     setSheetOpen(true)
   }
@@ -114,7 +197,9 @@ export default function OutwardPage() {
       setSaveError("Enter dispatch date")
       return
     }
-    if (!form.total_dispatched || Number(form.total_dispatched) <= 0) {
+    const hasLineItems = lineItems.length > 0
+    const totalDispatched = hasLineItems ? lineItemTotals.dispatched : Number(form.total_dispatched)
+    if (!totalDispatched || totalDispatched <= 0) {
       setSaveError("Enter total dispatched quantity")
       return
     }
@@ -124,10 +209,18 @@ export default function OutwardPage() {
       await api.post("/outward-deliveries", {
         po_id: Number(form.po_id),
         dispatch_date: form.dispatch_date,
-        total_dispatched: Number(form.total_dispatched),
-        total_shortage: Number(form.total_shortage) || 0,
-        total_spoiled: Number(form.total_spoiled) || 0,
+        total_dispatched: totalDispatched,
+        total_shortage: hasLineItems ? lineItemTotals.shortage : Number(form.total_shortage) || 0,
+        total_spoiled: hasLineItems ? lineItemTotals.spoiled : Number(form.total_spoiled) || 0,
         notes: form.notes || undefined,
+        line_items: hasLineItems
+          ? lineItems.map((li) => ({
+              article_variant_id: li.article_variant_id,
+              quantity_dispatched: Number(li.quantity_dispatched) || 0,
+              quantity_shortage: Number(li.quantity_shortage) || 0,
+              quantity_spoiled: Number(li.quantity_spoiled) || 0,
+            }))
+          : [],
       })
       setSheetOpen(false)
       toast.success("Delivery recorded")
@@ -329,45 +422,119 @@ export default function OutwardPage() {
               />
             </div>
 
-            {/* Total dispatched */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Total Dispatched *
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={form.total_dispatched}
-                onChange={(e) => setForm((f) => ({ ...f, total_dispatched: e.target.value }))}
-                placeholder="0"
-                className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
-              />
-            </div>
+            {/* Per-variant line items, or manual totals if the PO has no sizes yet */}
+            {lineItemsLoading ? (
+              <div className="flex items-center justify-center h-16">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : lineItems.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Per Size — Dispatched / Shortage / Spoiled *
+                </label>
+                <div className="border border-border rounded-md overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground">Size</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Dispatched</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Shortage</th>
+                        <th className="text-right px-2 py-2 font-medium text-muted-foreground">Spoiled</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {lineItems.map((li, idx) => (
+                        <tr key={li.article_variant_id}>
+                          <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
+                            {variantLabel(li.variant)}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              value={li.quantity_dispatched}
+                              onChange={(e) => updateLineItem(idx, "quantity_dispatched", e.target.value)}
+                              className="w-20 h-7 px-2 rounded border border-input bg-background text-right font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              value={li.quantity_shortage}
+                              onChange={(e) => updateLineItem(idx, "quantity_shortage", e.target.value)}
+                              className="w-16 h-7 px-2 rounded border border-input bg-background text-right font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              value={li.quantity_spoiled}
+                              onChange={(e) => updateLineItem(idx, "quantity_spoiled", e.target.value)}
+                              className="w-16 h-7 px-2 rounded border border-input bg-background text-right font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-border bg-muted/20 font-medium">
+                        <td className="px-3 py-1.5 text-muted-foreground">Total</td>
+                        <td className="px-2 py-1.5 text-right font-mono tabular-nums">{lineItemTotals.dispatched}</td>
+                        <td className="px-2 py-1.5 text-right font-mono tabular-nums">{lineItemTotals.shortage}</td>
+                        <td className="px-2 py-1.5 text-right font-mono tabular-nums">{lineItemTotals.spoiled}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Total dispatched */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Total Dispatched *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={form.total_dispatched}
+                    onChange={(e) => setForm((f) => ({ ...f, total_dispatched: e.target.value }))}
+                    placeholder="0"
+                    className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This PO has no sizes added yet — add line items to it for per-size tracking.
+                  </p>
+                </div>
 
-            {/* Shortage + Spoiled */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Shortage</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.total_shortage}
-                  onChange={(e) => setForm((f) => ({ ...f, total_shortage: e.target.value }))}
-                  className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Spoiled</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.total_spoiled}
-                  onChange={(e) => setForm((f) => ({ ...f, total_spoiled: e.target.value }))}
-                  className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
-                />
-                <p className="text-xs text-muted-foreground">Factory loss</p>
-              </div>
-            </div>
+                {/* Shortage + Spoiled */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Shortage</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.total_shortage}
+                      onChange={(e) => setForm((f) => ({ ...f, total_shortage: e.target.value }))}
+                      className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Spoiled</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.total_spoiled}
+                      onChange={(e) => setForm((f) => ({ ...f, total_spoiled: e.target.value }))}
+                      className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">Factory loss</p>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Notes */}
             <div className="flex flex-col gap-1.5">

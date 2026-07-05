@@ -52,3 +52,14 @@ def po_status_report(
 ):
     data = svc.get_po_status_report(current_user.factory_id, db)
     return {"success": True, "data": data, "message": ""}
+
+
+@router.get("/completed")
+def completed_report(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = svc.get_completed_report(current_user.factory_id, year, month, db)
+    return {"success": True, "data": data, "message": ""}
