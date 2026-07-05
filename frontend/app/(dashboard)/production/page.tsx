@@ -55,7 +55,7 @@ interface Article {
 interface WorkStage {
   id: number
   name: string
-  pay_rate: number
+  pay_rate_in_house: number
   sequence_order: number
 }
 
@@ -64,6 +64,7 @@ interface Employee {
   name: string
   role: string
   pay_type: string
+  sourcing_type: "in_house" | "wfh"
 }
 
 interface ApiResponse<T> {
@@ -82,7 +83,7 @@ interface QueuedWork {
   article_number: string
   work_stage_id: number
   stage_name: string
-  pay_rate: number
+  pay_rate_in_house: number
   quantity_assigned: number
   start_date: string
   notes: string
@@ -150,6 +151,8 @@ export default function ProductionPage() {
   const [workForm, setWorkForm] = useState<WorkForm>(emptyWorkForm())
   const [workError, setWorkError] = useState("")
   const [stagesLoading, setStagesLoading] = useState(false)
+  const [staffCount, setStaffCount] = useState("1")
+  const [timeEstimate, setTimeEstimate] = useState<{ hours: number; minutes: number } | null>(null)
 
   // Log completion sheet
   const [completionSheetOpen, setCompletionSheetOpen] = useState(false)
@@ -219,6 +222,26 @@ export default function ProductionPage() {
     return () => { cancelled = true }
   }, [workForm.article_id])
 
+  // Estimated completion time for the selected stage/quantity/staff count (debounced)
+  useEffect(() => {
+    const qty = Number(workForm.quantity_assigned)
+    const staff = Number(staffCount)
+    if (!workForm.article_id || !workForm.work_stage_id || !qty || qty <= 0 || !staff || staff <= 0) {
+      setTimeEstimate(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      api
+        .get<ApiResponse<{ hours: number; minutes: number }>>(
+          `/articles/${workForm.article_id}/stages/${workForm.work_stage_id}/estimate-time?staff_count=${staff}&quantity_pairs=${qty}`
+        )
+        .then(res => { if (!cancelled) setTimeEstimate(res.data) })
+        .catch(() => { if (!cancelled) setTimeEstimate(null) })
+    }, 350)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [workForm.article_id, workForm.work_stage_id, workForm.quantity_assigned, staffCount])
+
   // ── Filtered list ───────────────────────────────────────────────────────────
 
   const filtered = assignments.filter(a =>
@@ -231,6 +254,8 @@ export default function ProductionPage() {
     setWorkForm(emptyWorkForm())
     setWorkStages([])
     setWorkError("")
+    setStaffCount("1")
+    setTimeEstimate(null)
     setWorkSheetOpen(true)
   }
 
@@ -256,7 +281,7 @@ export default function ProductionPage() {
       article_number: article.article_number,
       work_stage_id: stage.id,
       stage_name: stage.name,
-      pay_rate: stage.pay_rate,
+      pay_rate_in_house: stage.pay_rate_in_house,
       quantity_assigned: Number(workForm.quantity_assigned),
       start_date: workForm.start_date,
       notes: workForm.notes.trim(),
@@ -430,7 +455,7 @@ export default function ProductionPage() {
                     <span>·</span>
                     <span className="tabular-nums">{item.quantity_assigned} pcs</span>
                     <span>·</span>
-                    <span className="tabular-nums">₹{item.pay_rate}/pc</span>
+                    <span className="tabular-nums">₹{item.pay_rate_in_house}/pc</span>
                   </div>
                 </div>
                 <button
@@ -693,7 +718,7 @@ export default function ProductionPage() {
                     <SelectContent>
                       {workStages.map(s => (
                         <SelectItem key={s.id} value={String(s.id)}>
-                          {s.name} — ₹{s.pay_rate}/pc
+                          {s.name} — ₹{s.pay_rate_in_house}/pc
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -703,19 +728,39 @@ export default function ProductionPage() {
             )}
 
             {/* Quantity */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground/80">
-                Quantity <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={workForm.quantity_assigned}
-                onChange={e => setWorkForm(f => ({ ...f, quantity_assigned: e.target.value }))}
-                placeholder="e.g. 50"
-                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/80">
+                  Quantity (pairs) <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={workForm.quantity_assigned}
+                  onChange={e => setWorkForm(f => ({ ...f, quantity_assigned: e.target.value }))}
+                  placeholder="e.g. 50"
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/80">Staff on this stage</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={staffCount}
+                  onChange={e => setStaffCount(e.target.value)}
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                />
+              </div>
             </div>
+
+            {timeEstimate != null && (
+              <p className="text-xs text-muted-foreground bg-muted/30 border border-border rounded-md px-3 py-2">
+                Estimated time: <span className="font-mono text-foreground">
+                  {timeEstimate.hours >= 1 ? `${timeEstimate.hours.toFixed(1)}h` : `${timeEstimate.minutes.toFixed(0)}m`}
+                </span> at the studied rate.
+              </p>
+            )}
 
             {/* Start Date */}
             <div className="space-y-1.5">
@@ -938,7 +983,10 @@ function WorkerDropCard({
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{employee.name}</p>
-        <p className="text-[11px] text-muted-foreground truncate capitalize">{employee.role} · {employee.pay_type}</p>
+        <p className="text-[11px] text-muted-foreground truncate capitalize">
+          {employee.role} · {employee.pay_type}
+          {employee.sourcing_type === "wfh" && <span className="text-accent-foreground"> · WFH</span>}
+        </p>
       </div>
 
       {/* Fallback: tap-to-assign for touch/keyboard users */}

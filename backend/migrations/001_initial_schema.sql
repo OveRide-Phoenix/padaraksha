@@ -117,14 +117,15 @@ CREATE TABLE IF NOT EXISTS bom_items (
     FOREIGN KEY (raw_material_id) REFERENCES raw_materials(id)
 );
 
--- Work stages / process steps for an article (with pay rate per piece)
+-- Work stages / process steps for an article (with pay rate per 100 pieces)
 CREATE TABLE IF NOT EXISTS work_stages (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     article_id      INT UNSIGNED NOT NULL,
     name            VARCHAR(120) NOT NULL,
     sequence_order  INT UNSIGNED NOT NULL DEFAULT 1,
     is_parallel     BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE = can run concurrently with peers
-    pay_rate        DECIMAL(10,2) NOT NULL DEFAULT 0.00,  -- ₹ per piece (for piece-rate workers)
+    pay_rate        DECIMAL(10,2) NOT NULL DEFAULT 0.00,  -- ₹ per 100 pieces (for piece-rate workers)
+    avg_seconds_per_100 DECIMAL(10,2) UNSIGNED,  -- avg time (seconds, decimal) for 1 staff member to complete 100 pieces of this stage
     -- History: stage changes mid-production close the old row
     valid_from      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     valid_to        DATETIME,

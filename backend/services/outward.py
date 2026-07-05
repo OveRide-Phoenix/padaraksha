@@ -196,6 +196,9 @@ def create_outward_delivery(
                 .first()
             )
             if variant:
+                # BOM quantities are defined per individual piece; a "pair" variant
+                # is 2 pieces, so double the spoiled count before applying BOM quantity.
+                pieces_spoiled = li_data.quantity_spoiled * (2 if variant.foot == "pair" else 1)
                 bom_items = (
                     db.query(BomItem)
                     .filter(
@@ -205,7 +208,7 @@ def create_outward_delivery(
                     .all()
                 )
                 for bom in bom_items:
-                    damage_qty = float(bom.quantity) * li_data.quantity_spoiled
+                    damage_qty = float(bom.quantity) * pieces_spoiled
                     db.add(InventoryTransaction(
                         factory_id=factory_id,
                         raw_material_id=bom.raw_material_id,

@@ -16,6 +16,9 @@ pip install -q -r backend/requirements.txt
 echo "==> [2/5] Running DB migrations..."
 # Run each migration only if not already applied — adjust as needed
 mysql -u root -p padaraksha_db < backend/migrations/001_initial_schema.sql || true
+mysql -u root -p padaraksha_db < backend/migrations/002_costing_engine.sql || true
+mysql -u root -p padaraksha_db < backend/migrations/003_wage_and_snacks_fix.sql || true
+mysql -u root -p padaraksha_db < backend/migrations/004_tailor_wfh_wage.sql || true
 
 echo "==> [3/5] Installing Node dependencies..."
 cd "$APP_DIR/frontend"

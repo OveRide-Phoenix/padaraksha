@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -33,6 +33,8 @@ interface FormState {
   article_number: string
   name: string
   description: string
+  mrp: string
+  rate_company: string
 }
 
 export default function ArticlesPage() {
@@ -41,11 +43,12 @@ export default function ArticlesPage() {
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState("")
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [form, setForm]           = useState<FormState>({ article_number: "", name: "", description: "" })
+  const [form, setForm]           = useState<FormState>({ article_number: "", name: "", description: "", mrp: "", rate_company: "" })
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState("")
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [confirmId, setConfirmId]   = useState<number | null>(null)
+  const articleNumberRef = useRef<HTMLInputElement>(null)
 
   const loadArticles = useCallback(async () => {
     setLoading(true)
@@ -68,7 +71,7 @@ export default function ArticlesPage() {
 
   const openCreate = () => {
     const prefix = getSettings().articleNumberPrefix
-    setForm({ article_number: prefix, name: "", description: "" })
+    setForm({ article_number: prefix, name: "", description: "", mrp: "", rate_company: "" })
     setError("")
     setSheetOpen(true)
   }
@@ -80,8 +83,13 @@ export default function ArticlesPage() {
       toast.success("Article deleted")
       setConfirmId(null)
       await loadArticles()
-    } catch {
-      toast.error("Failed to delete article")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete article"
+      toast.error(
+        msg === "ARTICLE_HAS_PRODUCTION_HISTORY"
+          ? "Can't delete — this article has production history. Mark it inactive instead."
+          : "Failed to delete article"
+      )
     } finally {
       setDeletingId(null)
     }
@@ -96,6 +104,8 @@ export default function ArticlesPage() {
         article_number: form.article_number.trim(),
         name: form.name.trim() || null,
         description: form.description.trim() || null,
+        mrp: form.mrp.trim() ? Number(form.mrp) : null,
+        rate_company: form.rate_company.trim() ? Number(form.rate_company) : null,
       })
       setSheetOpen(false)
       toast.success("Article created")
@@ -234,7 +244,19 @@ export default function ArticlesPage() {
 
       {/* Create Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-[480px] p-0 flex flex-col">
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-[480px] p-0 flex flex-col"
+          onOpenAutoFocus={e => {
+            e.preventDefault()
+            const input = articleNumberRef.current
+            if (input) {
+              input.focus()
+              const end = input.value.length
+              input.setSelectionRange(end, end)
+            }
+          }}
+        >
           <SheetHeader className="px-6 pt-6 pb-5 border-b border-border shrink-0">
             <SheetTitle className="text-base font-semibold">New Article</SheetTitle>
           </SheetHeader>
@@ -245,6 +267,7 @@ export default function ArticlesPage() {
                 Article Number <span className="text-destructive">*</span>
               </label>
               <input
+                ref={articleNumberRef}
                 type="text"
                 value={form.article_number}
                 onChange={e => { setForm(f => ({ ...f, article_number: e.target.value })); setError("") }}
@@ -273,6 +296,33 @@ export default function ArticlesPage() {
                 rows={3}
                 className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 resize-none"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/80">MRP (₹)</label>
+                <input
+                  type="number"
+                  value={form.mrp}
+                  onChange={e => setForm(f => ({ ...f, mrp: e.target.value }))}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/80">Rate — company (₹/pair)</label>
+                <input
+                  type="number"
+                  value={form.rate_company}
+                  onChange={e => setForm(f => ({ ...f, rate_company: e.target.value }))}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                />
+              </div>
             </div>
 
             <p className="text-xs text-muted-foreground pt-1">

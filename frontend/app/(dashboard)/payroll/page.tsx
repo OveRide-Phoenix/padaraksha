@@ -22,6 +22,7 @@ interface Employee {
   name: string
   role: string | null
   pay_type: "piece_rate" | "fixed"
+  sourcing_type: "in_house" | "wfh"
   fixed_wage: number | null
   is_active: boolean
 }
@@ -93,6 +94,7 @@ const emptyEmployee = {
   name: "",
   role: "",
   pay_type: "piece_rate" as "piece_rate" | "fixed",
+  sourcing_type: "in_house" as "in_house" | "wfh",
   fixed_wage: "",
   join_date: today(),
   phone: "",
@@ -216,6 +218,7 @@ export default function PayrollPage() {
       name: emp.name,
       role: emp.role ?? "",
       pay_type: emp.pay_type,
+      sourcing_type: emp.sourcing_type,
       fixed_wage: emp.fixed_wage != null ? String(emp.fixed_wage) : "",
       join_date: today(),
       phone: "",
@@ -242,6 +245,7 @@ export default function PayrollPage() {
         name: empForm.name.trim(),
         role: empForm.role || undefined,
         pay_type: empForm.pay_type,
+        sourcing_type: empForm.sourcing_type,
         fixed_wage: empForm.fixed_wage ? Number(empForm.fixed_wage) : undefined,
         join_date: empForm.join_date,
         phone: empForm.phone || undefined,
@@ -490,6 +494,9 @@ export default function PayrollPage() {
                       <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
                         Pay Type
                       </th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                        Sourcing
+                      </th>
                       <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
                         Rate
                       </th>
@@ -510,6 +517,16 @@ export default function PayrollPage() {
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
                           {emp.pay_type === "piece_rate" ? "Piece Rate" : "Fixed Daily"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
+                            emp.sourcing_type === "wfh"
+                              ? "bg-accent/15 text-accent-foreground"
+                              : "bg-muted text-muted-foreground"
+                          )}>
+                            {emp.sourcing_type === "wfh" ? "WFH" : "In-house"}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-muted-foreground">
                           {emp.pay_type === "fixed" && emp.fixed_wage != null
@@ -925,6 +942,25 @@ export default function PayrollPage() {
                   <SelectItem value="fixed">Fixed Daily Wage</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Sourcing *</label>
+              <Select
+                value={empForm.sourcing_type}
+                onValueChange={(v) =>
+                  setEmpForm((f) => ({ ...f, sourcing_type: v as "in_house" | "wfh" }))
+                }
+              >
+                <SelectTrigger className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_house">In-house</SelectItem>
+                  <SelectItem value="wfh">Work From Home</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Determines which stage piece-rate they're paid at.</p>
             </div>
 
             {empForm.pay_type === "fixed" && (

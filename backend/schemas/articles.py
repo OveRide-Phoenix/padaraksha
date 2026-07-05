@@ -43,17 +43,27 @@ class BomItemOut(BaseModel):
 
 class WorkStageCreate(BaseModel):
     name: str
+    role: Literal["tailor", "helper"] = "helper"
+    applies_per: Literal["piece", "pair"] = "piece"
+    seconds_per_10_pieces: float | None = None
+    fatigue_allowance_pct: float = 5.0
+    pay_rate_in_house: float = 0.0
+    pay_rate_wfh: float = 0.0
     sequence_order: int = 1
     is_parallel: bool = False
-    pay_rate: float = 0.0
 
 
 class WorkStageOut(BaseModel):
     id: int
     name: str
+    role: str
+    applies_per: str
+    seconds_per_10_pieces: float | None = None
+    fatigue_allowance_pct: float
+    pay_rate_in_house: float
+    pay_rate_wfh: float
     sequence_order: int
     is_parallel: bool
-    pay_rate: float
     valid_from: datetime
     valid_to: datetime | None = None
     is_active: bool
@@ -87,12 +97,16 @@ class ArticleCreate(BaseModel):
     article_number: str
     name: str | None = None
     description: str | None = None
+    mrp: float | None = None
+    rate_company: float | None = None
     variants: list[ArticleVariantCreate] = []
 
 
 class ArticleUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    mrp: float | None = None
+    rate_company: float | None = None
     is_active: bool | None = None
 
 
@@ -101,6 +115,8 @@ class ArticleOut(BaseModel):
     article_number: str
     name: str | None
     description: str | None
+    mrp: float | None = None
+    rate_company: float | None = None
     is_active: bool
     variants: list[ArticleVariantOut] = []
     bom_items: list[BomItemOut] = []

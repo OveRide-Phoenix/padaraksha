@@ -15,6 +15,8 @@ from routers import (
     payroll,
     dashboard,
     reports,
+    settings,
+    factories,
 )
 
 app = FastAPI(title="Padaraksha API", version="1.0.0")
@@ -43,6 +45,8 @@ app.include_router(employees.router, prefix="/employees", tags=["employees"])
 app.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 app.include_router(reports.router, prefix="/reports", tags=["reports"])
+app.include_router(settings.router, prefix="/settings", tags=["settings"])
+app.include_router(factories.router, prefix="/factories", tags=["factories"])
 
 
 @app.get("/health")

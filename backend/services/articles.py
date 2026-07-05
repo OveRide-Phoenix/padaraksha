@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models.articles import Article, ArticleVariant, BomItem, RawMaterial, WorkStage
@@ -15,8 +16,21 @@ from schemas.articles import (
 
 def delete_article(article_id: int, factory_id: int, db: Session) -> None:
     article = get_article(article_id, factory_id, db)
+    for stage in article.work_stages:
+        db.delete(stage)
+    for item in article.bom_items:
+        db.delete(item)
+    for variant in article.variants:
+        db.delete(variant)
     db.delete(article)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="ARTICLE_HAS_PRODUCTION_HISTORY",
+        )
 
 
 def list_articles(factory_id: int, db: Session) -> list[Article]:

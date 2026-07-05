@@ -61,7 +61,8 @@ def _compute_payroll(factory_id: int, period_start: date, period_end: date, db: 
             .all()
         )
         for completion, assignment, stage in non_rework_completions:
-            earned = float(completion.quantity_completed) * float(stage.pay_rate)
+            rate = stage.pay_rate_wfh if emp.sourcing_type == "wfh" else stage.pay_rate_in_house
+            earned = float(completion.quantity_completed) * float(rate) / 100
             piece_rate_pay += earned
             total_pieces += completion.quantity_completed
 

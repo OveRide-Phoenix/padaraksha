@@ -12,6 +12,8 @@ class Article(Base):
     article_number = Column(String(60), nullable=False)
     name = Column(String(120))
     description = Column(Text)
+    mrp = Column(Numeric(10, 2))
+    rate_company = Column(Numeric(10, 2))  # ₹/pair the provider company pays
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -73,9 +75,14 @@ class WorkStage(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     article_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
     name = Column(String(120), nullable=False)
+    role = Column(Enum("tailor", "helper"), default="helper", nullable=False)
+    applies_per = Column(Enum("piece", "pair"), default="piece", nullable=False)
+    seconds_per_10_pieces = Column(Numeric(10, 2))  # raw stopwatch reading
+    fatigue_allowance_pct = Column(Numeric(5, 2), default=5.00, nullable=False)
+    pay_rate_in_house = Column(Numeric(10, 2), default=0, nullable=False)  # ₹ per 100 pieces
+    pay_rate_wfh = Column(Numeric(10, 2), default=0, nullable=False)  # ₹ per 100 pieces
     sequence_order = Column(Integer, default=1, nullable=False)
     is_parallel = Column(Boolean, default=False, nullable=False)
-    pay_rate = Column(Numeric(10, 2), default=0, nullable=False)
     valid_from = Column(DateTime, server_default=func.now(), nullable=False)
     valid_to = Column(DateTime)
     is_active = Column(Boolean, default=True, nullable=False)

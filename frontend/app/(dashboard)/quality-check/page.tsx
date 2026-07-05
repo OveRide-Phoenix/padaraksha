@@ -52,7 +52,7 @@ interface Article {
 interface WorkStage {
   id: number
   name: string
-  pay_rate: number
+  pay_rate_in_house: number
   sequence_order: number
 }
 

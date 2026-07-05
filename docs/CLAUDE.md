@@ -82,7 +82,7 @@
 
 **Work Process:**
 - List of work stages defined per article (e.g., cutting, stitching, sole fixing)
-- Each stage has: stage name, sequence order (can be parallel for early stages), and a pay rate per piece
+- Each stage has: stage name, sequence order (can be parallel for early stages), and a pay rate **per 100 pieces**
 - Sequence is flexible — some early stages can run in parallel, later stages are sequential
 - Work process can be updated mid-production (process upgrade / machinery change)
 - No system enforcement of stage order — record freely
@@ -336,6 +336,15 @@ Employee → Work Assignments → Payroll
 - Keep history of changes for audit purposes
 
 ---
+
+## Local Dev Environment
+
+- **MySQL**: Homebrew-managed (`brew services start/stop mysql`), data dir `/opt/homebrew/var/mysql`.
+- **DB/user**: `padaraksha_db` / `padaraksha`@`localhost`, password matches `backend/.env` `DATABASE_URL`. Create via the SQL in `deploy/DEPLOY.md` if missing, then load `backend/migrations/001_initial_schema.sql`.
+- **Seed data**: `cd backend && .venv/bin/python seed.py` — creates factory "Padaraksha Footwear" (id=1) and login `admin` / `admin123`, plus sample articles/employees/POs.
+- **Run backend**: `cd backend && .venv/bin/uvicorn main:app --reload --port 8000`
+- **Run frontend**: `cd frontend && npm run dev` (port 3000) — note its `dev` script also tries to spawn the backend itself via `concurrently`; harmless if a backend is already running on 8000 (it just fails to bind and no-ops).
+- If MySQL root password is ever unknown/lost locally, it can be reset via `mysqld_safe --datadir=/opt/homebrew/var/mysql --skip-grant-tables --skip-networking`, then `ALTER USER 'root'@'localhost' IDENTIFIED BY '...'`. Password policy (`validate_password.special_char_count`) may need lowering to `0` to match the existing `.env` password, which has no special characters.
 
 ## Out of Scope (for now)
 - Worker-facing mobile app

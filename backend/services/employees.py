@@ -15,6 +15,7 @@ class EmployeeCreate(BaseModel):
     name: str
     role: Optional[str] = None
     pay_type: str  # fixed | piece_rate | hybrid
+    sourcing_type: str = "in_house"  # in_house | wfh — selects which stage piece-rate applies
     fixed_wage: Optional[float] = None
     join_date: date
     phone: Optional[str] = None
@@ -25,6 +26,7 @@ class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     pay_type: Optional[str] = None
+    sourcing_type: Optional[str] = None
     fixed_wage: Optional[float] = None
     is_active: Optional[bool] = None
     phone: Optional[str] = None
@@ -62,6 +64,7 @@ def _employee_out(e: Employee) -> dict:
         "name": e.name,
         "role": e.role,
         "pay_type": e.pay_type,
+        "sourcing_type": e.sourcing_type,
         "fixed_wage": float(e.fixed_wage) if e.fixed_wage is not None else None,
         "join_date": e.join_date.isoformat(),
         "is_active": e.is_active,
@@ -88,6 +91,7 @@ def create_employee(factory_id: int, data: EmployeeCreate, db: Session) -> Emplo
         name=data.name,
         role=data.role,
         pay_type=data.pay_type,
+        sourcing_type=data.sourcing_type,
         fixed_wage=data.fixed_wage,
         join_date=data.join_date,
         phone=data.phone,

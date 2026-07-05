@@ -14,6 +14,7 @@ class Employee(Base):
     pay_type = Column(
         Enum("fixed", "piece_rate", "hybrid"), default="piece_rate", nullable=False
     )
+    sourcing_type = Column(Enum("in_house", "wfh"), default="in_house", nullable=False)
     fixed_wage = Column(Numeric(10, 2))
     join_date = Column(Date, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)

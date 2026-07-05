@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from typing import Literal
 
 from database import get_db
 from schemas.articles import (
@@ -11,6 +12,7 @@ from schemas.articles import (
 )
 from schemas.auth import CurrentUser
 from services import articles as articles_service
+from services import costing as costing_service
 from utils.dependencies import get_current_user
 
 router = APIRouter()
@@ -22,6 +24,8 @@ def _article_out(article):
         "article_number": article.article_number,
         "name": article.name,
         "description": article.description,
+        "mrp": float(article.mrp) if article.mrp is not None else None,
+        "rate_company": float(article.rate_company) if article.rate_company is not None else None,
         "is_active": article.is_active,
         "variants": [
             {
@@ -51,9 +55,14 @@ def _article_out(article):
             {
                 "id": s.id,
                 "name": s.name,
+                "role": s.role,
+                "applies_per": s.applies_per,
+                "seconds_per_10_pieces": float(s.seconds_per_10_pieces) if s.seconds_per_10_pieces is not None else None,
+                "fatigue_allowance_pct": float(s.fatigue_allowance_pct),
+                "pay_rate_in_house": float(s.pay_rate_in_house),
+                "pay_rate_wfh": float(s.pay_rate_wfh),
                 "sequence_order": s.sequence_order,
                 "is_parallel": s.is_parallel,
-                "pay_rate": float(s.pay_rate),
                 "is_active": s.is_active,
                 "valid_from": s.valid_from.isoformat(),
                 "valid_to": s.valid_to.isoformat() if s.valid_to else None,
@@ -170,3 +179,64 @@ def add_variant(
 ):
     variant = articles_service.add_variant(article_id, current_user.factory_id, body, db)
     return {"success": True, "data": {"id": variant.id}, "message": "Variant added"}
+
+
+@router.get("/{article_id}/costing")
+def get_costing(
+    article_id: int,
+    sourcing: Literal["in_house", "wfh"] = Query(default="in_house"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = costing_service.compute_unit_cost(article_id, current_user.factory_id, sourcing, db)
+    return {"success": True, "data": data, "message": ""}
+
+
+@router.get("/{article_id}/breakeven")
+def get_breakeven(
+    article_id: int,
+    sourcing: Literal["in_house", "wfh"] = Query(default="in_house"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = costing_service.compute_breakeven(article_id, current_user.factory_id, sourcing, db)
+    return {"success": True, "data": data, "message": ""}
+
+
+@router.get("/{article_id}/profit-goal")
+def get_profit_goal(
+    article_id: int,
+    target_profit_monthly: float = Query(default=0.0),
+    sourcing: Literal["in_house", "wfh"] = Query(default="in_house"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = costing_service.compute_profit_goal(
+        article_id, current_user.factory_id, sourcing, target_profit_monthly, db
+    )
+    return {"success": True, "data": data, "message": ""}
+
+
+@router.get("/{article_id}/throughput")
+def get_throughput(
+    article_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = costing_service.compute_throughput(article_id, current_user.factory_id, db)
+    return {"success": True, "data": data, "message": ""}
+
+
+@router.get("/{article_id}/stages/{stage_id}/estimate-time")
+def get_estimate_time(
+    article_id: int,
+    stage_id: int,
+    staff_count: int = Query(default=1, ge=1),
+    quantity_pairs: int = Query(default=0, ge=0),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = costing_service.estimate_batch_time(
+        article_id, stage_id, current_user.factory_id, staff_count, quantity_pairs, db
+    )
+    return {"success": True, "data": data, "message": ""}
