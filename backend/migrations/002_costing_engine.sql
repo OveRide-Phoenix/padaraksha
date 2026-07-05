@@ -58,6 +58,9 @@ ALTER TABLE articles
 -- WORK STAGES — time study + role + dual piece rates
 -- ─────────────────────────────────────────
 
+-- avg_seconds_per_100 is dropped defensively (IF EXISTS): it only ever existed
+-- in a stray local dev edit, never in an officially-run migration, so some
+-- environments won't have it.
 ALTER TABLE work_stages
     ADD COLUMN role ENUM('tailor','helper') NOT NULL DEFAULT 'helper' AFTER name,
     ADD COLUMN applies_per ENUM('piece','pair') NOT NULL DEFAULT 'piece' AFTER role,
@@ -66,7 +69,7 @@ ALTER TABLE work_stages
     ADD COLUMN pay_rate_in_house DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER fatigue_allowance_pct,
     ADD COLUMN pay_rate_wfh DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER pay_rate_in_house,
     DROP COLUMN pay_rate,
-    DROP COLUMN avg_seconds_per_100;
+    DROP COLUMN IF EXISTS avg_seconds_per_100;
 
 -- ─────────────────────────────────────────
 -- EMPLOYEES — sourcing type (drives which piece rate applies)
